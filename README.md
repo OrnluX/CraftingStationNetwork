@@ -9,23 +9,39 @@ BepInEx mod for Valheim that links crafting stations of the **same logical type*
 - Neighboring stations link when they are within **20 m** by default.
 - Network traversal is radial and may branch freely.
 - A network is bounded to **100 m from the station being used**.
-- Destroying or unloading a station must invalidate it; no permanent ghost links are stored.
+- Destroyed or unloaded stations disappear naturally because the runtime network is resolved from Valheim's currently loaded `CraftingStation` registry; no permanent ghost links are stored.
 - Compatibility with other mods is a first-class concern. Integrations are optional adapters rather than hard dependencies.
 - Initial compatibility target: **CraftingStorageLink 1.7.1** (`com.custom.valheim.craftingstoragelink`).
 
 ## Current status
 
-Early development scaffold. The pure network model and plugin shell are being established before patching Valheim's current `CraftingStation` implementation.
+The first runtime integration is implemented on the development branch:
 
-The first playable milestone will:
+- Valheim stations are identified by their logical `CraftingStation.m_name` key;
+- loaded stations are read from Valheim's `CraftingStation.m_allStations` registry;
+- same-type stations are resolved with radial BFS using `LinkRange` and the 100 m network cap;
+- `CraftingStorageLink` is detected as a soft dependency;
+- its container search is extended to storage near every reachable same-type station;
+- its final pull-distance validation is redirected to the linked station that makes the container valid, while leaving CraftingStorageLink's own access, ownership and transaction safeguards intact.
 
-1. identify loaded crafting stations by stable logical identity;
-2. build same-type links within the configured link range;
-3. resolve the reachable radial network within 100 m of the origin station;
-4. recalculate safely when stations appear, disappear, or unload;
-5. expose the resolved network to optional compatibility adapters.
+This does **not** share station levels, recipes or upgrades. A level-1 workbench stays level 1 even when connected to a level-5 workbench.
 
-`CraftingStorageLink` integration will be implemented only after validating the exact Valheim 1.0 method signatures and the mod's runtime hooks.
+## Example
+
+```text
+                chest
+                  |
+             Workbench C
+                 / \
+                /   \
+Workbench A -- B     D
+     ^
+   player
+```
+
+If every workbench-to-workbench edge is within `LinkRange` and every participating station is within 100 m of Workbench A, CraftingStorageLink may use eligible containers near A, B, C and D while the player crafts at A.
+
+Forge networks, stonecutter networks and other station types remain completely separate.
 
 ## Development requirements
 
