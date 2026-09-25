@@ -11,9 +11,8 @@ namespace CraftingStationNetwork.Valheim
     /// Resolves the storage networks that are physically available to the player while
     /// placing a hammer piece that requires a crafting station.
     ///
-    /// This intentionally does not merge station graphs. Each CraftingStation type is
-    /// still resolved independently by ValheimStationNetwork. The returned collection
-    /// is only the union of those independent networks for one build-storage query.
+    /// Station graphs remain independent by logical type. This class only forms a
+    /// temporary union of their station nodes for one hammer-storage query.
     /// </summary>
     internal static class BuildStorageNetworkResolver
     {
@@ -29,13 +28,14 @@ namespace CraftingStationNetwork.Valheim
 
             try
             {
-                return player.GetSelectedPiece();
+                PieceTable buildTool = player.GetBuildTool();
+                return buildTool == null ? null : buildTool.GetSelectedPiece();
             }
             catch (Exception ex)
             {
                 Plugin.DebugLogOnce(
                     "build-storage:selected-piece:" + ex.GetType().FullName,
-                    $"Build storage context could not read selected piece: {ex.GetType().Name}: {ex.Message}");
+                    $"Build storage context could not read selected hammer piece: {ex.GetType().Name}: {ex.Message}");
                 return null;
             }
         }
@@ -58,21 +58,20 @@ namespace CraftingStationNetwork.Valheim
             Piece piece = GetSelectedPiece(player);
             if (piece == null || piece.m_craftingStation == null)
             {
-                // This resolver is deliberately limited to hammer pieces that have an
-                // explicit station requirement. Station placement and stationless pieces
-                // keep the already-tested single-network behavior.
+                // Station placement and stationless pieces retain the existing,
+                // already-tested single-network behavior.
                 return Array.Empty<CraftingStation>();
             }
 
             var result = new List<CraftingStation>();
             var addedStationIds = new HashSet<int>();
 
-            // Preserve the required station network selected by CraftingStorageLink.
+            // The required station still controls whether Valheim permits the build.
+            // Its same-type network also remains a valid storage source.
             AddNetwork(explicitRequiredStation, result, addedStationIds);
 
-            // Storage availability is separate from the station requirement itself.
-            // Any crafting station whose vanilla build radius currently covers the player
-            // contributes its own independent same-type network to the storage query.
+            // Storage availability is a separate concern. Every station whose vanilla
+            // build radius covers the player contributes its own independent network.
             Vector3 point = player.transform.position;
             List<CraftingStation> loadedStations = SnapshotLoadedStations();
 
@@ -102,9 +101,10 @@ namespace CraftingStationNetwork.Valheim
             if (Plugin.Settings?.VerboseDiagnostics.Value == true)
             {
                 string pieceName = string.IsNullOrEmpty(piece.m_name) ? piece.name : piece.m_name;
+                string networks = DescribeNetworkSet(result);
                 Plugin.DebugLogOnce(
-                    $"build-storage-context:{pieceName}:{DescribeNetworkSet(result)}",
-                    $"Hammer storage context: piece='{pieceName}', requiredStation={ValheimStationNetwork.DescribeStation(explicitRequiredStation)}, storageNodes={result.Count}, networks={DescribeNetworkSet(result)}.");
+                    $"build-storage-context:{pieceName}:{networks}:{result.Count}",
+                    $"Hammer storage context: piece='{pieceName}', requiredStation={ValheimStationNetwork.DescribeStation(explicitRequiredStation)}, storageNodes={result.Count}, networks={networks}.");
             }
 
             return result;
@@ -167,7 +167,6 @@ namespace CraftingStationNetwork.Valheim
         private static List<CraftingStation> SnapshotLoadedStations()
         {
             var result = new List<CraftingStation>();
-
             if (AllStationsField == null)
             {
                 return result;
