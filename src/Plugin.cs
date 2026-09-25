@@ -12,7 +12,7 @@ namespace CraftingStationNetwork
     {
         public const string PluginGuid = "com.ornlux.valheim.craftingstationnetwork";
         public const string PluginName = "CraftingStationNetwork";
-        public const string PluginVersion = "0.1.3";
+        public const string PluginVersion = "0.1.4";
 
         internal static ManualLogSource Log { get; private set; }
         internal static PluginConfig Settings { get; private set; }
@@ -25,6 +25,7 @@ namespace CraftingStationNetwork
             DebugLog($"Booting {PluginName} {PluginVersion}.");
 
             CraftingStorageLinkCompat.Initialize(Logger);
+            BuildHudVisualFix.Initialize(Logger);
 
             Logger.LogInfo($"{PluginName} {PluginVersion} loaded. LinkRange={Settings.LinkRange.Value:0.##}m; MaxNetworkRadius={Settings.MaxNetworkRadius.Value:0.##}m.");
             DebugLog($"Network defaults active: LinkRange={Settings.LinkRange.Value:0.##}m; MaxNetworkRadius={Settings.MaxNetworkRadius.Value:0.##}m.");
@@ -37,6 +38,7 @@ namespace CraftingStationNetwork
 
         private void OnDestroy()
         {
+            BuildHudVisualFix.Shutdown();
             CraftingStorageLinkCompat.Shutdown();
             DevelopmentConsole.Shutdown();
         }
