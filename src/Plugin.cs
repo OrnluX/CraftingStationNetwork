@@ -11,7 +11,7 @@ namespace CraftingStationNetwork
     {
         public const string PluginGuid = "com.ornlux.valheim.craftingstationnetwork";
         public const string PluginName = "CraftingStationNetwork";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.1.1";
 
         internal static ManualLogSource Log { get; private set; }
         internal static PluginConfig Settings { get; private set; }
