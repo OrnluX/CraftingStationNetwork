@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Logging;
 using CraftingStationNetwork.Compatibility;
 using CraftingStationNetwork.Configuration;
+using CraftingStationNetwork.Diagnostics;
 
 namespace CraftingStationNetwork
 {
@@ -11,7 +12,7 @@ namespace CraftingStationNetwork
     {
         public const string PluginGuid = "com.ornlux.valheim.craftingstationnetwork";
         public const string PluginName = "CraftingStationNetwork";
-        public const string PluginVersion = "0.1.1";
+        public const string PluginVersion = "0.1.2";
 
         internal static ManualLogSource Log { get; private set; }
         internal static PluginConfig Settings { get; private set; }
@@ -20,19 +21,44 @@ namespace CraftingStationNetwork
         {
             Log = Logger;
             Settings = PluginConfig.Bind(Config);
+            DevelopmentConsole.Initialize(Settings.DevelopmentConsole.Value);
+            DebugLog($"Booting {PluginName} {PluginVersion}.");
+
             CraftingStorageLinkCompat.Initialize(Logger);
 
             Logger.LogInfo($"{PluginName} {PluginVersion} loaded. LinkRange={Settings.LinkRange.Value:0.##}m; MaxNetworkRadius={Settings.MaxNetworkRadius.Value:0.##}m.");
+            DebugLog($"Network defaults active: LinkRange={Settings.LinkRange.Value:0.##}m; MaxNetworkRadius={Settings.MaxNetworkRadius.Value:0.##}m.");
+        }
+
+        private void OnGUI()
+        {
+            DevelopmentConsole.Draw();
         }
 
         private void OnDestroy()
         {
             CraftingStorageLinkCompat.Shutdown();
+            DevelopmentConsole.Shutdown();
         }
 
         internal static void DebugLog(string message)
         {
-            Log?.LogDebug(message);
+            DevelopmentConsole.Trace(message);
+
+            if (Settings?.MirrorDevelopmentLogToBepInEx.Value == true)
+            {
+                Log?.LogDebug(message);
+            }
+        }
+
+        internal static void DebugLogOnce(string key, string message)
+        {
+            DevelopmentConsole.TraceOnce(key, message);
+
+            if (Settings?.MirrorDevelopmentLogToBepInEx.Value == true)
+            {
+                Log?.LogDebug(message);
+            }
         }
     }
 }
