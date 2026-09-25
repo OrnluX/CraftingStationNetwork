@@ -144,6 +144,23 @@ namespace CraftingStationNetwork.Valheim
                 return stationAnchor;
             }
 
+            // A non-station hammer piece with an explicit crafting-station requirement
+            // must never fall back to another nearby station type when the required
+            // station is missing. In that state CraftingStorageLink supplies a null
+            // explicit station and Valheim should remain authoritative for the invalid
+            // requirement state.
+            if (selectedPiece.m_craftingStation != null)
+            {
+                if (Plugin.Settings?.VerboseDiagnostics.Value == true)
+                {
+                    Plugin.DebugLogOnce(
+                        $"placement-anchor:required-station-missing:{pieceName}",
+                        $"Placement anchor skipped for required-station piece '{pieceName}': no explicit required station is available.");
+                }
+
+                return null;
+            }
+
             // Some hammer pieces have no required crafting station at all. In that case
             // CraftingStorageLink legitimately supplies a null station. We still allow the
             // piece to use one existing network when the player is physically inside that
