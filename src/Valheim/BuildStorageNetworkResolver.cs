@@ -63,6 +63,24 @@ namespace CraftingStationNetwork.Valheim
                 return Array.Empty<CraftingStation>();
             }
 
+            // Do not supplement storage when the piece's required station itself is not
+            // currently valid. In that state Valheim/CraftingStorageLink should remain
+            // fully authoritative and show their native invalid-build HUD/context.
+            // This also prevents another covering station type (for example a Workbench)
+            // from partially contributing materials to a Forge-required piece.
+            if (explicitRequiredStation == null)
+            {
+                if (Plugin.Settings?.VerboseDiagnostics.Value == true)
+                {
+                    string pieceName = string.IsNullOrEmpty(piece.m_name) ? piece.name : piece.m_name;
+                    Plugin.DebugLogOnce(
+                        $"build-storage-context:no-required-station:{pieceName}",
+                        $"Hammer storage context skipped for piece='{pieceName}' because its required crafting station is not currently valid.");
+                }
+
+                return Array.Empty<CraftingStation>();
+            }
+
             var result = new List<CraftingStation>();
             var addedStationIds = new HashSet<int>();
 
