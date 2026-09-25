@@ -6,6 +6,7 @@ using CraftingStationNetwork.Configuration;
 namespace CraftingStationNetwork
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
+    [BepInDependency(CraftingStorageLinkCompat.PluginGuid, BepInDependency.DependencyFlags.SoftDependency)]
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.ornlux.valheim.craftingstationnetwork";
@@ -22,6 +23,16 @@ namespace CraftingStationNetwork
             CraftingStorageLinkCompat.Initialize(Logger);
 
             Logger.LogInfo($"{PluginName} {PluginVersion} loaded. LinkRange={Settings.LinkRange.Value:0.##}m; MaxNetworkRadius={Settings.MaxNetworkRadius.Value:0.##}m.");
+        }
+
+        private void OnDestroy()
+        {
+            CraftingStorageLinkCompat.Shutdown();
+        }
+
+        internal static void DebugLog(string message)
+        {
+            Log?.LogDebug(message);
         }
     }
 }
