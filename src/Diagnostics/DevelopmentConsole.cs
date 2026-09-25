@@ -21,6 +21,8 @@ namespace CraftingStationNetwork.Diagnostics
         private static Rect _windowRect = new Rect(20f, 20f, 920f, 480f);
         private static Vector2 _scroll;
         private static string _logPath;
+        private static string _copyStatus;
+        private static float _copyStatusUntil;
 
         internal static bool Enabled => _enabled;
 
@@ -135,6 +137,11 @@ namespace CraftingStationNetwork.Diagnostics
             GUILayout.BeginHorizontal();
             GUILayout.Label("Dedicated runtime diagnostics (separate from the BepInEx console)");
 
+            if (GUILayout.Button("Copy All", GUILayout.Width(85f)))
+            {
+                CopyAllToClipboard();
+            }
+
             if (GUILayout.Button("Clear", GUILayout.Width(70f)))
             {
                 lock (Sync)
@@ -142,6 +149,8 @@ namespace CraftingStationNetwork.Diagnostics
                     Lines.Clear();
                     OnceKeys.Clear();
                 }
+
+                SetCopyStatus("Console cleared.");
             }
 
             if (GUILayout.Button("Hide", GUILayout.Width(70f)))
@@ -154,6 +163,11 @@ namespace CraftingStationNetwork.Diagnostics
             if (!string.IsNullOrEmpty(_logPath))
             {
                 GUILayout.Label("Log file: " + _logPath);
+            }
+
+            if (!string.IsNullOrEmpty(_copyStatus) && Time.realtimeSinceStartup <= _copyStatusUntil)
+            {
+                GUILayout.Label(_copyStatus);
             }
 
             _scroll = GUILayout.BeginScrollView(_scroll);
@@ -171,6 +185,39 @@ namespace CraftingStationNetwork.Diagnostics
 
             GUILayout.EndScrollView();
             GUI.DragWindow(new Rect(0f, 0f, 10000f, 24f));
+        }
+
+        private static void CopyAllToClipboard()
+        {
+            string[] snapshot;
+            lock (Sync)
+            {
+                snapshot = Lines.ToArray();
+            }
+
+            if (snapshot.Length == 0)
+            {
+                SetCopyStatus("Nothing to copy.");
+                return;
+            }
+
+            try
+            {
+                GUIUtility.systemCopyBuffer = string.Join(Environment.NewLine, snapshot);
+                SetCopyStatus($"Copied {snapshot.Length} lines to clipboard.");
+                Trace($"Copied {snapshot.Length} development-console lines to clipboard.");
+            }
+            catch (Exception ex)
+            {
+                SetCopyStatus($"Clipboard copy failed: {ex.GetType().Name}.");
+                Trace($"Clipboard copy failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private static void SetCopyStatus(string message)
+        {
+            _copyStatus = message;
+            _copyStatusUntil = Time.realtimeSinceStartup + 4f;
         }
     }
 }
