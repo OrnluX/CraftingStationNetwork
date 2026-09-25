@@ -136,12 +136,22 @@ namespace CraftingStationNetwork.Compatibility
             Vector3 origin,
             object __result)
         {
-            if (!IsActive || station == null || player == null || __result == null)
+            if (!IsActive || player == null || __result == null)
             {
                 return;
             }
 
-            int stationId = station.GetInstanceID();
+            // CraftingStorageLink intentionally treats pieces such as a Workbench as
+            // stationless while they are being placed. In that case, derive an anchor
+            // from the selected station piece and the placement ghost. The new station
+            // may use the existing network only when it is close enough to join it.
+            CraftingStation networkOrigin = station ?? ValheimStationNetwork.ResolvePlacementAnchor(player);
+            if (networkOrigin == null)
+            {
+                return;
+            }
+
+            int stationId = networkOrigin.GetInstanceID();
             if (_lastExpandedFrame == Time.frameCount &&
                 _lastExpandedStationId == stationId &&
                 ReferenceEquals(_lastExpandedResult, __result))
@@ -159,8 +169,8 @@ namespace CraftingStationNetwork.Compatibility
                 return;
             }
 
-            IReadOnlyList<CraftingStation> network = ValheimStationNetwork.Resolve(station);
-            if (network.Count <= 1)
+            IReadOnlyList<CraftingStation> network = ValheimStationNetwork.Resolve(networkOrigin);
+            if (network.Count == 0)
             {
                 return;
             }
@@ -212,16 +222,18 @@ namespace CraftingStationNetwork.Compatibility
 
             if (added > 0)
             {
-                Plugin.DebugLog($"CraftingStorageLink: added {added} container(s) through {ValheimStationNetwork.GetTypeKey(station)} network ({network.Count} loaded station nodes).");
+                string mode = station == null ? "station placement" : "station use";
+                Plugin.DebugLog($"CraftingStorageLink: added {added} container(s) through {ValheimStationNetwork.GetTypeKey(networkOrigin)} network ({network.Count} loaded station nodes; {mode}).");
             }
         }
 
         private static void PullFromContainerPrefix(
+            Player player,
             CraftingStation station,
             ref Vector3 origin,
             Container container)
         {
-            if (!IsActive || station == null || container == null)
+            if (!IsActive || player == null || container == null)
             {
                 return;
             }
@@ -235,11 +247,17 @@ namespace CraftingStationNetwork.Compatibility
                 return;
             }
 
-            IReadOnlyList<CraftingStation> network = ValheimStationNetwork.Resolve(station);
+            CraftingStation networkOrigin = station ?? ValheimStationNetwork.ResolvePlacementAnchor(player);
+            if (networkOrigin == null)
+            {
+                return;
+            }
+
+            IReadOnlyList<CraftingStation> network = ValheimStationNetwork.Resolve(networkOrigin);
             for (int i = 0; i < network.Count; i++)
             {
                 CraftingStation linkedStation = network[i];
-                if (linkedStation == null || linkedStation == station)
+                if (linkedStation == null)
                 {
                     continue;
                 }
