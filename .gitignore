@@ -1,0 +1,35 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+publish/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# Local configuration
+*.local.props
+*.local.targets
+.env
+.env.*
+
+# Valheim / BepInEx runtime files
+BepInEx/
+valheim_Data/
+*.dll
+*.pdb
+*.mdb
+
+# Logs / generated config
+*.log
+LogOutput.log
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
