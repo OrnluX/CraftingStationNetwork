@@ -22,7 +22,9 @@ The first runtime integration is implemented on the development branch:
 - same-type stations are resolved with radial BFS using `LinkRange` and the 100 m network cap;
 - `CraftingStorageLink` is detected as a soft dependency;
 - its container search is extended to storage near every reachable same-type station;
-- its final pull-distance validation is redirected to the linked station that makes the container valid, while leaving CraftingStorageLink's own access, ownership and transaction safeguards intact.
+- its final pull-distance validation is redirected to the linked station that makes the container valid, while leaving CraftingStorageLink's own access, ownership and transaction safeguards intact;
+- station pieces such as a new Workbench may borrow materials only from an existing same-type network that the new station is close enough to join;
+- hammer pieces with no explicit crafting-station requirement may use the nearest station network whose vanilla build radius currently covers the player.
 
 This does **not** share station levels, recipes or upgrades. A level-1 workbench stays level 1 even when connected to a level-5 workbench.
 
@@ -42,6 +44,27 @@ Workbench A -- B     D
 If every workbench-to-workbench edge is within `LinkRange` and every participating station is within 100 m of Workbench A, CraftingStorageLink may use eligible containers near A, B, C and D while the player crafts at A.
 
 Forge networks, stonecutter networks and other station types remain completely separate.
+
+## Development diagnostics
+
+Development builds expose a dedicated in-game diagnostics window, separate from the normal BepInEx console. It traces station-origin resolution, CraftingStorageLink build-context decisions, container expansion and pull redirection.
+
+It also writes a dedicated file at runtime:
+
+```text
+BepInEx\plugins\CraftingStationNetwork\CraftingStationNetwork.dev.log
+```
+
+Default development settings:
+
+```ini
+[Development]
+ConsoleEnabled = true
+VerboseDiagnostics = true
+MirrorToBepInEx = false
+```
+
+`MirrorToBepInEx=false` keeps the verbose CraftingStationNetwork trace out of the main mod-manager console unless explicitly enabled.
 
 ## Development requirements
 
