@@ -18,6 +18,8 @@ namespace CraftingStationNetwork.Compatibility
         private static ManualLogSource _log;
         private static MethodInfo _isEligibleContainer;
         private static MethodInfo _effectiveRadiusGetter;
+        private static MethodInfo _ensureContainerRegistry;
+        private static FieldInfo _containerRegistryField;
         private static ConstructorInfo _containerCandidateConstructor;
         private static FieldInfo _containerCandidateContainerField;
 
@@ -64,6 +66,8 @@ namespace CraftingStationNetwork.Compatibility
                     pluginType,
                     "IsEligibleContainer",
                     new[] { typeof(Player), typeof(Container) });
+                _ensureContainerRegistry = AccessTools.Method(pluginType, "EnsureContainerRegistry");
+                _containerRegistryField = AccessTools.Field(pluginType, "_containerRegistry");
 
                 PropertyInfo effectiveRadius = pluginType.GetProperty(
                     "EffectiveRadius",
@@ -103,7 +107,10 @@ namespace CraftingStationNetwork.Compatibility
                     prefix: new HarmonyMethod(typeof(CraftingStorageLinkCompat), nameof(PullFromContainerPrefix)));
 
                 IsActive = true;
-                log.LogInfo($"CraftingStorageLink {pluginInfo.Metadata.Version} detected. Station-network storage integration enabled.");
+                string registryMode = _containerRegistryField != null && _ensureContainerRegistry != null
+                    ? "native loaded-container registry"
+                    : "Unity container scan fallback";
+                log.LogInfo($"CraftingStorageLink {pluginInfo.Metadata.Version} detected. Station-network storage integration enabled ({registryMode}).");
             }
             catch (Exception ex)
             {
@@ -175,19 +182,10 @@ namespace CraftingStationNetwork.Compatibility
                 }
             }
 
-            Container[] containers;
-            try
-            {
-                containers = UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None);
-            }
-            catch (Exception ex)
-            {
-                _log?.LogWarning($"CraftingStorageLink network container discovery failed: {ex.GetType().Name}: {ex.Message}");
-                return;
-            }
-
+            List<Container> containers = SnapshotLoadedContainers();
             int added = 0;
-            for (int i = 0; i < containers.Length; i++)
+
+            for (int i = 0; i < containers.Count; i++)
             {
                 Container container = containers[i];
                 if (container == null || existingContainers.Contains(container))
@@ -256,6 +254,50 @@ namespace CraftingStationNetwork.Compatibility
                     return;
                 }
             }
+        }
+
+        private static List<Container> SnapshotLoadedContainers()
+        {
+            var result = new List<Container>();
+
+            if (_containerRegistryField != null && _ensureContainerRegistry != null)
+            {
+                try
+                {
+                    _ensureContainerRegistry.Invoke(null, null);
+                    IEnumerable registry = _containerRegistryField.GetValue(null) as IEnumerable;
+                    if (registry != null)
+                    {
+                        foreach (object value in registry)
+                        {
+                            Container container = value as Container;
+                            if (container != null)
+                            {
+                                result.Add(container);
+                            }
+                        }
+
+                        return result;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.DebugLog($"Could not read CraftingStorageLink container registry; falling back to Unity scan: {ex.GetType().Name}: {ex.Message}");
+                    result.Clear();
+                }
+            }
+
+            try
+            {
+                Container[] containers = UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None);
+                result.AddRange(containers);
+            }
+            catch (Exception ex)
+            {
+                _log?.LogWarning($"CraftingStorageLink network container discovery failed: {ex.GetType().Name}: {ex.Message}");
+            }
+
+            return result;
         }
 
         private static float GetClosestNetworkDistanceSquared(
