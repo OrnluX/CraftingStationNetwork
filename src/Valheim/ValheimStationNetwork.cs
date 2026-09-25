@@ -11,6 +11,7 @@ namespace CraftingStationNetwork.Valheim
     internal static class ValheimStationNetwork
     {
         private static readonly FieldInfo AllStationsField = AccessTools.Field(typeof(CraftingStation), "m_allStations");
+        private static readonly FieldInfo PlacementGhostField = AccessTools.Field(typeof(Player), "m_placementGhost");
 
         internal static IReadOnlyList<CraftingStation> Resolve(CraftingStation origin)
         {
@@ -89,6 +90,66 @@ namespace CraftingStationNetwork.Valheim
             return result;
         }
 
+        internal static CraftingStation ResolvePlacementAnchor(Player player)
+        {
+            if (player == null)
+            {
+                return null;
+            }
+
+            Piece selectedPiece;
+            try
+            {
+                selectedPiece = player.GetSelectedPiece();
+            }
+            catch (Exception ex)
+            {
+                Plugin.DebugLog($"Could not read selected build piece: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+
+            if (selectedPiece == null)
+            {
+                return null;
+            }
+
+            CraftingStation stationPrefab = selectedPiece.GetComponent<CraftingStation>();
+            if (stationPrefab == null)
+            {
+                stationPrefab = selectedPiece.GetComponentInChildren<CraftingStation>(true);
+            }
+
+            if (stationPrefab == null)
+            {
+                return null;
+            }
+
+            string typeKey = GetTypeKey(stationPrefab);
+            if (string.IsNullOrEmpty(typeKey))
+            {
+                return null;
+            }
+
+            Vector3 placementPoint = player.transform.position;
+            if (PlacementGhostField != null)
+            {
+                try
+                {
+                    GameObject placementGhost = PlacementGhostField.GetValue(player) as GameObject;
+                    if (placementGhost != null && placementGhost.activeInHierarchy)
+                    {
+                        placementPoint = placementGhost.transform.position;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.DebugLog($"Could not read placement ghost position: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+
+            return FindClosestCompatibleStation(typeKey, placementPoint, Plugin.Settings.LinkRange.Value);
+        }
+
         internal static string GetTypeKey(CraftingStation station)
         {
             if (station == null)
@@ -97,6 +158,39 @@ namespace CraftingStationNetwork.Valheim
             }
 
             return station.m_name ?? string.Empty;
+        }
+
+        private static CraftingStation FindClosestCompatibleStation(string typeKey, Vector3 point, float maxDistance)
+        {
+            if (string.IsNullOrEmpty(typeKey) || maxDistance <= 0f)
+            {
+                return null;
+            }
+
+            float maxDistanceSquared = maxDistance * maxDistance;
+            float bestDistanceSquared = float.MaxValue;
+            CraftingStation best = null;
+            List<CraftingStation> stations = SnapshotLoadedStations();
+
+            for (int i = 0; i < stations.Count; i++)
+            {
+                CraftingStation station = stations[i];
+                if (station == null || !string.Equals(GetTypeKey(station), typeKey, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                float distanceSquared = (station.transform.position - point).sqrMagnitude;
+                if (distanceSquared > maxDistanceSquared || distanceSquared >= bestDistanceSquared)
+                {
+                    continue;
+                }
+
+                bestDistanceSquared = distanceSquared;
+                best = station;
+            }
+
+            return best;
         }
 
         private static List<CraftingStation> SnapshotLoadedStations()
