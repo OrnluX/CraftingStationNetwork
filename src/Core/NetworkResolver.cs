@@ -48,7 +48,7 @@ namespace CraftingStationNetwork.Core
                 .Where(node =>
                     node != null &&
                     string.Equals(node.TypeKey, origin.TypeKey, StringComparison.Ordinal) &&
-                    origin.Position.DistanceSquaredTo(node.Position) <= _maxRadiusSquared)
+                    origin.Position.HorizontalDistanceSquaredTo(node.Position) <= _maxRadiusSquared)
                 .ToArray();
 
             var visited = new HashSet<int>();
@@ -70,7 +70,7 @@ namespace CraftingStationNetwork.Core
                         continue;
                     }
 
-                    if (current.Position.DistanceSquaredTo(candidate.Position) > _linkRangeSquared)
+                    if (current.Position.HorizontalDistanceSquaredTo(candidate.Position) > _linkRangeSquared)
                     {
                         continue;
                     }

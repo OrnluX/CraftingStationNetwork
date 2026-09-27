@@ -116,8 +116,8 @@ namespace CraftingStationNetwork.Compatibility
                 string registryMode = _containerRegistryField != null && _ensureContainerRegistry != null
                     ? "native loaded-container registry"
                     : "Unity container scan fallback";
-                log.LogInfo($"CraftingStorageLink {pluginInfo.Metadata.Version} detected. Station-network storage integration enabled ({registryMode}).");
-                Plugin.DebugLog($"CraftingStorageLink {pluginInfo.Metadata.Version} compatibility active; container mode={registryMode}.");
+                log.LogInfo($"CraftingStorageLink {pluginInfo.Metadata.Version} detected. Station-network storage integration enabled ({registryMode}, cylindrical X/Z distance).");
+                Plugin.DebugLog($"CraftingStorageLink {pluginInfo.Metadata.Version} compatibility active; container mode={registryMode}; distanceMode=cylindrical-XZ.");
             }
             catch (Exception ex)
             {
@@ -241,7 +241,7 @@ namespace CraftingStationNetwork.Compatibility
                 string mode = station == null ? "derived build anchor" : "explicit station";
                 Plugin.DebugLogOnce(
                     $"find:{pieceName}:{stationId}:{network.Count}:{originalCandidateCount}:{added}",
-                    $"CSL FindContainers: piece='{pieceName}', mode={mode}, origin={ValheimStationNetwork.DescribeStation(networkOrigin)}, networkNodes={network.Count}, radius={radius:0.##}m, originalCandidates={originalCandidateCount}, addedByNetwork={added}, finalCandidates={candidates.Count}.");
+                    $"CSL FindContainers: piece='{pieceName}', mode={mode}, origin={ValheimStationNetwork.DescribeStation(networkOrigin)}, networkNodes={network.Count}, radius={radius:0.##}m, originalCandidates={originalCandidateCount}, addedByNetwork={added}, finalCandidates={candidates.Count}, distanceMode=cylindrical-XZ.");
             }
         }
 
@@ -260,6 +260,8 @@ namespace CraftingStationNetwork.Compatibility
             float radiusSquared = radius * radius;
             Vector3 containerPosition = container.transform.position;
 
+            // Keep CraftingStorageLink's native path untouched when its original 3D
+            // validation already considers this container local.
             if ((containerPosition - origin).sqrMagnitude <= radiusSquared)
             {
                 return;
@@ -268,6 +270,26 @@ namespace CraftingStationNetwork.Compatibility
             CraftingStation networkOrigin = station ?? ValheimStationNetwork.ResolvePlacementAnchor(player);
             if (networkOrigin == null)
             {
+                return;
+            }
+
+            // CraftingStorageLink validates PullFromContainer using 3D distance. If the
+            // container is horizontally in range of the original origin and only Y makes
+            // it fail, project the origin to the container's height. This makes CSL's
+            // final check equivalent to Valheim's cylindrical station range without
+            // changing its access, ownership or transaction logic.
+            if (HorizontalDistance.Squared(containerPosition, origin) <= radiusSquared)
+            {
+                Vector3 previousOrigin = origin;
+                origin = HorizontalDistance.ProjectOriginToTargetHeight(origin, containerPosition);
+
+                if (Plugin.Settings?.VerboseDiagnostics.Value == true)
+                {
+                    Plugin.DebugLogOnce(
+                        $"pull-project:{container.GetInstanceID()}:{networkOrigin.GetInstanceID()}",
+                        $"CSL pull projected direct origin from ({previousOrigin.x:0.0},{previousOrigin.y:0.0},{previousOrigin.z:0.0}) to ({origin.x:0.0},{origin.y:0.0},{origin.z:0.0}) for cylindrical access to container '{container.name}'.");
+                }
+
                 return;
             }
 
@@ -281,16 +303,16 @@ namespace CraftingStationNetwork.Compatibility
                 }
 
                 Vector3 linkedOrigin = linkedStation.transform.position;
-                if ((containerPosition - linkedOrigin).sqrMagnitude <= radiusSquared)
+                if (HorizontalDistance.Squared(containerPosition, linkedOrigin) <= radiusSquared)
                 {
                     Vector3 previousOrigin = origin;
-                    origin = linkedOrigin;
+                    origin = HorizontalDistance.ProjectOriginToTargetHeight(linkedOrigin, containerPosition);
 
                     if (Plugin.Settings?.VerboseDiagnostics.Value == true)
                     {
                         Plugin.DebugLogOnce(
                             $"pull-redirect:{container.GetInstanceID()}:{linkedStation.GetInstanceID()}",
-                            $"CSL pull redirected for container '{container.name}': from ({previousOrigin.x:0.0},{previousOrigin.y:0.0},{previousOrigin.z:0.0}) to linked station {ValheimStationNetwork.DescribeStation(linkedStation)}.");
+                            $"CSL pull redirected for container '{container.name}': from ({previousOrigin.x:0.0},{previousOrigin.y:0.0},{previousOrigin.z:0.0}) through linked station {ValheimStationNetwork.DescribeStation(linkedStation)} with cylindrical Y projection.");
                     }
 
                     return;
@@ -514,7 +536,7 @@ namespace CraftingStationNetwork.Compatibility
                     continue;
                 }
 
-                float distanceSquared = (point - station.transform.position).sqrMagnitude;
+                float distanceSquared = HorizontalDistance.Squared(point, station.transform.position);
                 if (distanceSquared < best)
                 {
                     best = distanceSquared;

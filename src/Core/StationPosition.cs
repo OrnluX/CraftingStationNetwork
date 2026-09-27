@@ -13,12 +13,11 @@ namespace CraftingStationNetwork.Core
         internal float Y { get; }
         internal float Z { get; }
 
-        internal float DistanceSquaredTo(StationPosition other)
+        internal float HorizontalDistanceSquaredTo(StationPosition other)
         {
             var dx = X - other.X;
-            var dy = Y - other.Y;
             var dz = Z - other.Z;
-            return (dx * dx) + (dy * dy) + (dz * dz);
+            return (dx * dx) + (dz * dz);
         }
     }
 }

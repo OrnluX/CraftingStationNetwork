@@ -18,17 +18,19 @@ Station level is deliberately ignored for connectivity and is never propagated a
 Default values:
 
 ```text
-LinkRange = 20 m
-MaxNetworkRadius = 100 m
+LinkRange = 30 m
+MaxNetworkRadius = 150 m
 ```
 
 The graph may branch freely. `MaxNetworkRadius` is measured from the origin station, not by hop count.
 
+All station-network distance is **cylindrical** and follows Valheim's station-range semantics: only horizontal X/Z separation is measured. Vertical Y separation is ignored.
+
 A station participates only when:
 
 1. it has the same logical type key as the origin;
-2. its physical distance from the origin is <= 100 m;
-3. there is a continuous path through same-type neighbors where every edge is <= LinkRange.
+2. its horizontal X/Z distance from the origin is <= 150 m;
+3. there is a continuous path through same-type neighbors where every horizontal X/Z edge is <= `LinkRange`.
 
 The resolver uses breadth-first traversal.
 
@@ -51,11 +53,11 @@ Build permission and storage availability are treated as separate concerns.
 
 ### Station placement and stationless pieces
 
-The existing single-network behavior remains unchanged:
+The existing single-network behavior remains unchanged except that all range checks are cylindrical:
 
 1. **Explicit station**: use it directly as the network origin.
-2. **Placing a station piece** (for example, a new Workbench): inspect the selected piece's `CraftingStation` component and choose the closest loaded station of the same logical type within `LinkRange` of the placement ghost. The new station may borrow materials only from a network it can actually join.
-3. **Placing a non-station piece with no explicit required station**: choose the closest loaded station whose vanilla `m_rangeBuild` covers the player. Only that station's same-type network is used.
+2. **Placing a station piece** (for example, a new Workbench): inspect the selected piece's `CraftingStation` component and choose the closest loaded station of the same logical type within horizontal `LinkRange` of the placement ghost. The new station may borrow materials only from a network it can actually join.
+3. **Placing a non-station piece with no explicit required station**: choose the closest loaded station whose vanilla cylindrical `m_rangeBuild` covers the player. Only that station's same-type network is used.
 4. **No valid anchor**: do not expand CraftingStorageLink's normal behavior.
 
 ### Hammer pieces with an explicit required station
@@ -65,7 +67,7 @@ A piece such as `$piece_woodironpole` may require a Forge. Valheim / CraftingSto
 For **storage discovery only**, `BuildStorageNetworkResolver` collects:
 
 - the network of the explicit required station, when one exists; and
-- each independent station network whose vanilla `m_rangeBuild` currently covers the player.
+- each independent station network whose vanilla cylindrical `m_rangeBuild` currently covers the player.
 
 Those network node sets are temporarily unioned for the storage query. Their graphs are never linked to each other.
 
@@ -100,15 +102,16 @@ The primary adapter patches two CraftingStorageLink operations:
 
 1. `FindContainers(Player, CraftingStation, Vector3)`
    - CraftingStorageLink performs its normal local lookup first.
-   - CraftingStationNetwork appends eligible containers within CraftingStorageLink's effective radius of reachable same-type station nodes.
+   - CraftingStationNetwork appends eligible containers within CraftingStorageLink's effective **horizontal X/Z radius** of reachable same-type station nodes.
    - Eligibility remains delegated to CraftingStorageLink's own `IsEligibleContainer` implementation.
 
 2. `PullFromContainer(...)`
-   - CraftingStorageLink revalidates distance before inventory mutation.
-   - If a selected container is valid through a linked station node, the origin for that one invocation is redirected to the station that makes the container valid.
+   - CraftingStorageLink revalidates distance before inventory mutation using its own 3D origin distance.
+   - If a selected container is valid cylindrically through the current origin or a linked station node, CraftingStationNetwork projects the call origin to the container's Y while preserving the relevant station/origin X/Z coordinates.
+   - That projection makes CraftingStorageLink's final 3D distance check numerically equivalent to the intended horizontal cylindrical distance.
    - CraftingStorageLink still performs ownership, access, inventory mutation, persistence and transaction logic.
 
-For hammer pieces with an explicit station requirement, `HammerBuildStorageCompat` supplements those same operations with the temporary union of independent covering station networks described above.
+For hammer pieces with an explicit station requirement, `HammerBuildStorageCompat` supplements those same operations with the temporary union of independent covering station networks described above. It uses the same cylindrical container-distance and Y-projection rules.
 
 ## Removed HUD recount
 
@@ -131,12 +134,13 @@ Verbose diagnostics trace:
 - the selected hammer piece;
 - explicit vs derived station origins;
 - resolved network size and station type;
+- cylindrical X/Z distance mode;
 - CraftingStorageLink `SupportsPiece` decisions when available;
 - CraftingStorageLink `GetBuildStation` decisions when available;
 - entry into build-requirement / placement flows;
 - local and network-added container candidates;
 - the station-network set used by station-required hammer builds;
-- pull-origin redirection to linked stations.
+- pull-origin redirection / Y projection to linked stations.
 
 Diagnostic Harmony hooks are best-effort and never change CraftingStorageLink return values.
 
@@ -150,9 +154,9 @@ Unknown or malformed stations do not become cross-type links.
 
 ## Performance
 
-The resolver operates on Valheim's currently loaded crafting stations only. It first restricts candidates to the origin's type and 100 m radial cap, then runs BFS across those candidates.
+The resolver operates on Valheim's currently loaded crafting stations only. It first restricts candidates to the origin's type and 150 m horizontal cylindrical cap, then runs BFS across those candidates.
 
-The station-required hammer resolver evaluates only loaded stations whose vanilla build radius covers the player, then resolves their independent networks. Duplicate station nodes are removed before container discovery.
+The station-required hammer resolver evaluates only loaded stations whose vanilla cylindrical build radius covers the player, then resolves their independent networks. Duplicate station nodes are removed before container discovery.
 
 Development diagnostics de-duplicate repeated decision messages so common per-frame checks do not flood the dedicated console.
 
