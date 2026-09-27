@@ -15,16 +15,17 @@ BepInEx mod for Valheim that links crafting stations of the **same logical type*
 
 ## Current status
 
-The first runtime integration is implemented on the development branch:
+The playable runtime integration currently provides:
 
-- Valheim stations are identified by their logical `CraftingStation.m_name` key;
-- loaded stations are read from Valheim's `CraftingStation.m_allStations` registry;
-- same-type stations are resolved with radial BFS using `LinkRange` and the 100 m network cap;
-- `CraftingStorageLink` is detected as a soft dependency;
-- its container search is extended to storage near every reachable same-type station;
-- its final pull-distance validation is redirected to the linked station that makes the container valid, while leaving CraftingStorageLink's own access, ownership and transaction safeguards intact;
+- Valheim stations identified by their logical `CraftingStation.m_name` key;
+- loaded stations read from Valheim's `CraftingStation.m_allStations` registry;
+- same-type radial BFS using `LinkRange` and the 100 m network cap;
+- soft-dependency integration with `CraftingStorageLink`;
+- container search extended to storage near reachable same-type station nodes;
+- final pull-distance validation redirected to the linked station that makes a selected container valid, while leaving CraftingStorageLink's own access, ownership and transaction safeguards intact;
 - station pieces such as a new Workbench may borrow materials only from an existing same-type network that the new station is close enough to join;
-- hammer pieces with no explicit crafting-station requirement may use the nearest station network whose vanilla build radius currently covers the player.
+- hammer pieces with no explicit crafting-station requirement keep the tested single-network anchor behavior;
+- hammer pieces that **do require a station** keep that station requirement intact, but their storage query may use the independent station networks whose vanilla build ranges currently cover the player. Those networks are queried together for storage only; Workbench, Forge, Stonecutter and other station graphs remain separate.
 
 This does **not** share station levels, recipes or upgrades. A level-1 workbench stays level 1 even when connected to a level-5 workbench.
 
@@ -44,6 +45,8 @@ Workbench A -- B     D
 If every workbench-to-workbench edge is within `LinkRange` and every participating station is within 100 m of Workbench A, CraftingStorageLink may use eligible containers near A, B, C and D while the player crafts at A.
 
 Forge networks, stonecutter networks and other station types remain completely separate.
+
+For hammer pieces that require a station, storage availability and build permission are intentionally separated. For example, while standing in overlapping Workbench and Forge coverage, a Forge-required piece still needs a valid Forge, but eligible storage may be discovered through both the Workbench network and Forge network without linking those two graphs together.
 
 ## Development diagnostics
 
@@ -65,6 +68,8 @@ MirrorToBepInEx = false
 ```
 
 `MirrorToBepInEx=false` keeps the verbose CraftingStationNetwork trace out of the main mod-manager console unless explicitly enabled.
+
+The development console includes **Copy All** so a complete diagnostic run can be copied directly to the clipboard.
 
 ## Development requirements
 
