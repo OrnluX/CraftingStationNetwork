@@ -89,7 +89,8 @@ namespace CraftingStationNetwork.Valheim
             AddNetwork(explicitRequiredStation, result, addedStationIds);
 
             // Storage availability is a separate concern. Every station whose vanilla
-            // build radius covers the player contributes its own independent network.
+            // cylindrical build radius covers the player contributes its own independent
+            // network. Vertical separation does not consume build-range distance.
             Vector3 point = player.transform.position;
             List<CraftingStation> loadedStations = SnapshotLoadedStations();
 
@@ -107,7 +108,7 @@ namespace CraftingStationNetwork.Valheim
                     continue;
                 }
 
-                float distanceSquared = (station.transform.position - point).sqrMagnitude;
+                float distanceSquared = HorizontalDistance.Squared(station.transform.position, point);
                 if (distanceSquared > buildRange * buildRange)
                 {
                     continue;
@@ -122,7 +123,7 @@ namespace CraftingStationNetwork.Valheim
                 string networks = DescribeNetworkSet(result);
                 Plugin.DebugLogOnce(
                     $"build-storage-context:{pieceName}:{networks}:{result.Count}",
-                    $"Hammer storage context: piece='{pieceName}', requiredStation={ValheimStationNetwork.DescribeStation(explicitRequiredStation)}, storageNodes={result.Count}, networks={networks}.");
+                    $"Hammer storage context: piece='{pieceName}', requiredStation={ValheimStationNetwork.DescribeStation(explicitRequiredStation)}, storageNodes={result.Count}, networks={networks}, distanceMode=cylindrical-XZ.");
             }
 
             return result;

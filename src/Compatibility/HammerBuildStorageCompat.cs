@@ -55,7 +55,7 @@ namespace CraftingStationNetwork.Compatibility
                 _harmony.Patch(findContainers, postfix: new HarmonyMethod(typeof(HammerBuildStorageCompat), nameof(FindContainersPostfix)) { priority = Priority.Last });
                 _harmony.Patch(pullFromContainer, prefix: new HarmonyMethod(typeof(HammerBuildStorageCompat), nameof(PullFromContainerPrefix)) { priority = Priority.Last });
                 IsActive = true;
-                Plugin.DebugLog("Hammer build storage context active: covering station networks contribute storage independently.");
+                Plugin.DebugLog("Hammer build storage context active: covering station networks contribute storage independently using cylindrical X/Z distance.");
             }
             catch (Exception ex)
             {
@@ -128,7 +128,7 @@ namespace CraftingStationNetwork.Compatibility
             if (Plugin.Settings?.VerboseDiagnostics.Value == true)
             {
                 string piece = ValheimStationNetwork.GetSelectedPieceName(player);
-                Plugin.DebugLogOnce($"hammer-storage-find:{piece}:{storageStations.Count}:{before}:{added}", $"CSL hammer multi-network storage: piece='{piece}', requiredStation={ValheimStationNetwork.DescribeStation(station)}, storageNodes={storageStations.Count}, originalCandidates={before}, added={added}, finalCandidates={candidates.Count}.");
+                Plugin.DebugLogOnce($"hammer-storage-find:{piece}:{storageStations.Count}:{before}:{added}", $"CSL hammer multi-network storage: piece='{piece}', requiredStation={ValheimStationNetwork.DescribeStation(station)}, storageNodes={storageStations.Count}, originalCandidates={before}, added={added}, finalCandidates={candidates.Count}, distanceMode=cylindrical-XZ.");
             }
         }
 
@@ -142,25 +142,50 @@ namespace CraftingStationNetwork.Compatibility
             float radius = GetEffectiveRadius();
             float radiusSquared = radius * radius;
             Vector3 position = container.transform.position;
+
+            // Native CraftingStorageLink already accepts the call when full 3D distance
+            // is within range. Leave that path untouched.
             if ((position - origin).sqrMagnitude <= radiusSquared)
             {
                 return;
             }
 
             IReadOnlyList<CraftingStation> storageStations = BuildStorageNetworkResolver.Resolve(player, station);
+            if (storageStations.Count == 0)
+            {
+                return;
+            }
+
+            // If only vertical separation made the original origin fail CSL's spherical
+            // validation, project Y so the final 3D check represents horizontal distance.
+            if (HorizontalDistance.Squared(position, origin) <= radiusSquared)
+            {
+                Vector3 oldOrigin = origin;
+                origin = HorizontalDistance.ProjectOriginToTargetHeight(origin, position);
+
+                if (Plugin.Settings?.VerboseDiagnostics.Value == true)
+                {
+                    Plugin.DebugLogOnce(
+                        $"hammer-storage-pull-project:{container.GetInstanceID()}",
+                        $"CSL hammer pull projected direct origin from ({oldOrigin.x:0.0},{oldOrigin.y:0.0},{oldOrigin.z:0.0}) to ({origin.x:0.0},{origin.y:0.0},{origin.z:0.0}) for cylindrical access to container '{container.name}'.");
+                }
+
+                return;
+            }
+
             for (int i = 0; i < storageStations.Count; i++)
             {
                 CraftingStation linked = storageStations[i];
-                if (linked == null || (position - linked.transform.position).sqrMagnitude > radiusSquared)
+                if (linked == null || HorizontalDistance.Squared(position, linked.transform.position) > radiusSquared)
                 {
                     continue;
                 }
 
                 Vector3 oldOrigin = origin;
-                origin = linked.transform.position;
+                origin = HorizontalDistance.ProjectOriginToTargetHeight(linked.transform.position, position);
                 if (Plugin.Settings?.VerboseDiagnostics.Value == true)
                 {
-                    Plugin.DebugLogOnce($"hammer-storage-pull:{container.GetInstanceID()}:{linked.GetInstanceID()}", $"CSL hammer pull redirected from ({oldOrigin.x:0.0},{oldOrigin.y:0.0},{oldOrigin.z:0.0}) to {ValheimStationNetwork.DescribeStation(linked)} for container '{container.name}'.");
+                    Plugin.DebugLogOnce($"hammer-storage-pull:{container.GetInstanceID()}:{linked.GetInstanceID()}", $"CSL hammer pull redirected from ({oldOrigin.x:0.0},{oldOrigin.y:0.0},{oldOrigin.z:0.0}) through {ValheimStationNetwork.DescribeStation(linked)} with cylindrical Y projection for container '{container.name}'.");
                 }
                 return;
             }
@@ -243,7 +268,8 @@ namespace CraftingStationNetwork.Compatibility
                 {
                     continue;
                 }
-                float distance = (point - station.transform.position).sqrMagnitude;
+
+                float distance = HorizontalDistance.Squared(point, station.transform.position);
                 if (distance < best)
                 {
                     best = distance;

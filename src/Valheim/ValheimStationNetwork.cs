@@ -92,7 +92,7 @@ namespace CraftingStationNetwork.Valheim
             {
                 Plugin.DebugLogOnce(
                     $"network:{originId}:{result.Count}",
-                    $"Resolved station network: origin={DescribeStation(origin)}, nodes={result.Count}, type={typeKey}.");
+                    $"Resolved station network: origin={DescribeStation(origin)}, nodes={result.Count}, type={typeKey}, distanceMode=cylindrical-XZ.");
             }
 
             return result;
@@ -164,8 +164,8 @@ namespace CraftingStationNetwork.Valheim
             // Some hammer pieces have no required crafting station at all. In that case
             // CraftingStorageLink legitimately supplies a null station. We still allow the
             // piece to use one existing network when the player is physically inside that
-            // station's vanilla build radius. The nearest covering station wins, keeping
-            // station types isolated rather than merging overlapping networks.
+            // station's vanilla cylindrical build radius. The nearest covering station wins,
+            // keeping station types isolated rather than merging overlapping networks.
             CraftingStation nearbyAnchor = FindClosestStationCoveringPoint(player.transform.position);
 
             if (Plugin.Settings?.VerboseDiagnostics.Value == true)
@@ -271,7 +271,7 @@ namespace CraftingStationNetwork.Valheim
                     continue;
                 }
 
-                float distanceSquared = (station.transform.position - point).sqrMagnitude;
+                float distanceSquared = HorizontalDistance.Squared(station.transform.position, point);
                 if (distanceSquared > maxDistanceSquared || distanceSquared >= bestDistanceSquared)
                 {
                     continue;
@@ -304,7 +304,7 @@ namespace CraftingStationNetwork.Valheim
                     continue;
                 }
 
-                float distanceSquared = (station.transform.position - point).sqrMagnitude;
+                float distanceSquared = HorizontalDistance.Squared(station.transform.position, point);
                 if (distanceSquared > buildRange * buildRange || distanceSquared >= bestDistanceSquared)
                 {
                     continue;

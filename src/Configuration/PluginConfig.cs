@@ -4,7 +4,7 @@ namespace CraftingStationNetwork.Configuration
 {
     internal sealed class PluginConfig
     {
-        private const float HardMaxNetworkRadius = 100f;
+        private const float HardMaxNetworkRadius = 150f;
 
         private PluginConfig(
             ConfigEntry<float> linkRange,
@@ -31,9 +31,9 @@ namespace CraftingStationNetwork.Configuration
             var linkRange = config.Bind(
                 "Network",
                 "LinkRange",
-                20f,
+                30f,
                 new ConfigDescription(
-                    "Maximum distance in metres for two stations of the same logical type to become direct neighbours.",
+                    "Maximum horizontal distance in metres for two stations of the same logical type to become direct neighbours. Vertical separation is ignored.",
                     new AcceptableValueRange<float>(1f, 50f)));
 
             var maxNetworkRadius = config.Bind(
@@ -41,7 +41,7 @@ namespace CraftingStationNetwork.Configuration
                 "MaxNetworkRadius",
                 HardMaxNetworkRadius,
                 new ConfigDescription(
-                    "Maximum radial distance in metres from the origin station. The hard cap is 100 m.",
+                    "Maximum horizontal radial distance in metres from the origin station. Vertical separation is ignored. The hard cap is 150 m.",
                     new AcceptableValueRange<float>(1f, HardMaxNetworkRadius)));
 
             var developmentConsole = config.Bind(
